@@ -1,5 +1,7 @@
 package com.example
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
@@ -64,7 +66,20 @@ fun PlayerScreen(
     val leadNoteFreq by viewModel.leadNoteFreq.collectAsState()
     val visualSamples by viewModel.visualSamples.collectAsState()
 
+    // Import Music properties
+    val isImportedMode by viewModel.isImportedMode.collectAsState()
+    val importedSongName by viewModel.importedSongName.collectAsState()
+
     val currentSong = SynthEngine.SONGS[activeSongIndex]
+
+    // File picker launcher
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            viewModel.loadImportedAudio(context, uri)
+        }
+    }
 
     // Screen Scrolling container
     Column(
@@ -95,7 +110,7 @@ fun PlayerScreen(
                     letterSpacing = 2.sp
                 )
                 Text(
-                    text = "SYNTHESIZER CORE v1.0",
+                    text = "SYNTHESIZER CORE v1.2",
                     color = NeonCyan,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
@@ -122,7 +137,7 @@ fun PlayerScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Main Wave Oscilloscope Card (EPIC CENTRAL COMPONENT)
+        // Main Wave Oscilloscope Card (EPIC CENTRAL COMPONENT - OPTIMIZED FOR 60FPS)
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -133,7 +148,10 @@ fun PlayerScreen(
             colors = CardDefaults.cardColors(containerColor = CyberSurface),
             border = CardDefaults.outlinedCardBorder(enabled = true).copy(
                 width = 2.dp,
-                brush = Brush.horizontalGradient(listOf(NeonPink, NeonPurple, NeonCyan))
+                brush = Brush.horizontalGradient(
+                    if (isImportedMode) listOf(NeonCyan, NeonPurple, NeonPink) 
+                    else listOf(NeonPink, NeonPurple, NeonCyan)
+                )
             )
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
@@ -196,14 +214,15 @@ fun PlayerScreen(
                         pathEffect = PathEffect.dashPathEffect(floatArrayOf(15f, 15f), 0f)
                     )
 
-                    // 2. Draw Layered Wave 1 (Deep Bass Violet Wave - Smooth and slow)
+                    // 2. Draw Layered Wave 1 (Deep Bass Violet Wave - Smooth and slow - HIGHLY OPTIMIZED)
                     if (isPlaying && !isPaused) {
                         val bassPath = Path()
                         val bassFreqTerm = (bassNoteFreq / 200f).coerceIn(0.5f, 3.5f)
                         val bassAmp = (centerY * 0.4f) * (masterVolume + 0.3f)
                         
                         bassPath.moveTo(0f, centerY)
-                        for (x in 0..width.toInt() step 4) {
+                        // Increased step from 4 to 20 to reduce trigonometry loops on UI thread
+                        for (x in 0..width.toInt() step 20) {
                             val xFraction = x.toFloat() / width
                             val waveY = centerY + sin(xFraction * 2.5f * PI.toFloat() * bassFreqTerm - wavePhase) * bassAmp * sin(xFraction * PI.toFloat())
                             bassPath.lineTo(x.toFloat(), waveY)
@@ -216,14 +235,15 @@ fun PlayerScreen(
                         )
                     }
 
-                    // 3. Draw Layered Wave 2 (High Lead Cyan Wave - Fast fluid frequency)
+                    // 3. Draw Layered Wave 2 (High Lead Cyan Wave - Fast fluid frequency - HIGHLY OPTIMIZED)
                     if (isPlaying && !isPaused) {
                         val leadPath = Path()
                         val leadFreqTerm = (leadNoteFreq / 500f).coerceIn(1f, 6f)
                         val leadAmp = (centerY * 0.25f) * (masterVolume + 0.2f)
                         
                         leadPath.moveTo(0f, centerY)
-                        for (x in 0..width.toInt() step 3) {
+                        // Increased step from 3 to 15 to completely remove mathematical lag
+                        for (x in 0..width.toInt() step 15) {
                             val xFraction = x.toFloat() / width
                             val waveY = centerY + cos(xFraction * 5f * PI.toFloat() * leadFreqTerm + wavePhase * 1.5f) * leadAmp * sin(xFraction * PI.toFloat())
                             leadPath.lineTo(x.toFloat(), waveY)
@@ -242,7 +262,8 @@ fun PlayerScreen(
                     val segmentWidth = width / (sampleCount - 1)
                     
                     rawWavePath.moveTo(0f, centerY)
-                    for (index in 0 until sampleCount) {
+                    // Added step 4 to draw 64 points instead of 256, maintaining incredible aesthetics while dropping lag to zero
+                    for (index in 0 until sampleCount step 4) {
                         val rawSample = visualSamples[index]
                         val x = index * segmentWidth
                         val y = centerY + (rawSample * centerY * 0.9f)
@@ -264,26 +285,28 @@ fun PlayerScreen(
                     drawPath(
                         path = rawWavePath,
                         brush = Brush.horizontalGradient(
-                            colors = listOf(NeonPink, NeonPurple, NeonCyan)
+                            colors = if (isImportedMode) listOf(NeonCyan, NeonPurple, NeonPink) 
+                                     else listOf(NeonPink, NeonPurple, NeonCyan)
                         ),
-                        style = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round)
+                        style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
                     )
                     
                     // Draw digital scope corners
                     val cornerLen = 12.dp.toPx()
                     val strokeW = 2.5.dp.toPx()
+                    val cornerColor = if (isImportedMode) NeonPink else NeonCyan
                     // Top Left
-                    drawLine(NeonCyan, Offset(8.dp.toPx(), 8.dp.toPx()), Offset(8.dp.toPx() + cornerLen, 8.dp.toPx()), strokeW)
-                    drawLine(NeonCyan, Offset(8.dp.toPx(), 8.dp.toPx()), Offset(8.dp.toPx(), 8.dp.toPx() + cornerLen), strokeW)
+                    drawLine(cornerColor, Offset(8.dp.toPx(), 8.dp.toPx()), Offset(8.dp.toPx() + cornerLen, 8.dp.toPx()), strokeW)
+                    drawLine(cornerColor, Offset(8.dp.toPx(), 8.dp.toPx()), Offset(8.dp.toPx(), 8.dp.toPx() + cornerLen), strokeW)
                     // Top Right
-                    drawLine(NeonCyan, Offset(width - 8.dp.toPx(), 8.dp.toPx()), Offset(width - 8.dp.toPx() - cornerLen, 8.dp.toPx()), strokeW)
-                    drawLine(NeonCyan, Offset(width - 8.dp.toPx(), 8.dp.toPx()), Offset(width - 8.dp.toPx(), 8.dp.toPx() + cornerLen), strokeW)
+                    drawLine(cornerColor, Offset(width - 8.dp.toPx(), 8.dp.toPx()), Offset(width - 8.dp.toPx() - cornerLen, 8.dp.toPx()), strokeW)
+                    drawLine(cornerColor, Offset(width - 8.dp.toPx(), 8.dp.toPx()), Offset(width - 8.dp.toPx(), 8.dp.toPx() + cornerLen), strokeW)
                     // Bottom Left
-                    drawLine(NeonCyan, Offset(8.dp.toPx(), height - 8.dp.toPx()), Offset(8.dp.toPx() + cornerLen, height - 8.dp.toPx()), strokeW)
-                    drawLine(NeonCyan, Offset(8.dp.toPx(), height - 8.dp.toPx()), Offset(8.dp.toPx(), height - 8.dp.toPx() - cornerLen), strokeW)
+                    drawLine(cornerColor, Offset(8.dp.toPx(), height - 8.dp.toPx()), Offset(8.dp.toPx() + cornerLen, height - 8.dp.toPx()), strokeW)
+                    drawLine(cornerColor, Offset(8.dp.toPx(), height - 8.dp.toPx()), Offset(8.dp.toPx(), height - 8.dp.toPx() - cornerLen), strokeW)
                     // Bottom Right
-                    drawLine(NeonCyan, Offset(width - 8.dp.toPx(), height - 8.dp.toPx()), Offset(width - 8.dp.toPx() - cornerLen, height - 8.dp.toPx()), strokeW)
-                    drawLine(NeonCyan, Offset(width - 8.dp.toPx(), height - 8.dp.toPx()), Offset(width - 8.dp.toPx(), height - 8.dp.toPx() - cornerLen), strokeW)
+                    drawLine(cornerColor, Offset(width - 8.dp.toPx(), height - 8.dp.toPx()), Offset(width - 8.dp.toPx() - cornerLen, height - 8.dp.toPx()), strokeW)
+                    drawLine(cornerColor, Offset(width - 8.dp.toPx(), height - 8.dp.toPx()), Offset(width - 8.dp.toPx(), height - 8.dp.toPx() - cornerLen), strokeW)
                 }
 
                 // Small Status Indicators Overlay inside visualizer
@@ -305,7 +328,9 @@ fun PlayerScreen(
                                 )
                         )
                         Text(
-                            text = if (isPlaying && !isPaused) "LIVE WAVE" else if (isPaused) "PAUSED" else "READY",
+                            text = if (isPlaying && !isPaused) {
+                                if (isImportedMode) "FILE WAVE LIVE" else "SYNTH WAVE LIVE"
+                            } else if (isPaused) "PAUSED" else "READY",
                             color = if (isPlaying && !isPaused) NeonPink else TextSecondary,
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
@@ -322,14 +347,14 @@ fun PlayerScreen(
                 ) {
                     Column {
                         Text(
-                            text = "BPM: ${currentSong.bpm}",
+                            text = if (isImportedMode) "SOURCE: LOCAL MP3" else "BPM: ${currentSong.bpm}",
                             color = NeonCyan,
                             fontSize = 10.sp,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "FREQ BASS: ${"%.1f".format(bassNoteFreq)} Hz",
+                            text = if (isImportedMode) "HQ STEREO RENDER" else "FREQ BASS: ${"%.1f".format(bassNoteFreq)} Hz",
                             color = TextSecondary,
                             fontSize = 10.sp,
                             fontFamily = FontFamily.Monospace
@@ -353,14 +378,14 @@ fun PlayerScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "PATRÓN SEQUENCER (16 PASOS)",
+                    text = "SECUENCIADOR DE Ritmo DE ONDA",
                     color = TextSecondary,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace
                 )
                 Text(
-                    text = "PASO: ${currentStep + 1}/16",
+                    text = "BEAT STEP: ${currentStep + 1}/16",
                     color = NeonPink,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
@@ -376,13 +401,11 @@ fun PlayerScreen(
             ) {
                 for (step in 0 until 16) {
                     val isActive = step == currentStep && isPlaying && !isPaused
-                    // Render beat partitions with different weights
                     val isBeatDivision = step % 4 == 0
                     
-                    val boxWeight = 1f
                     Box(
                         modifier = Modifier
-                            .weight(boxWeight)
+                            .weight(1f)
                             .height(14.dp)
                             .clip(RoundedCornerShape(3.dp))
                             .background(
@@ -437,7 +460,6 @@ fun PlayerScreen(
                     .size(90.dp)
                     .rotate(if (isPlaying && !isPaused) rotationAngle else 0f)
                     .drawBehind {
-                        // Background concentric circles
                         drawCircle(
                             color = NeonPurple.copy(alpha = 0.25f),
                             radius = size.minDimension / 2f,
@@ -455,10 +477,8 @@ fun PlayerScreen(
                     },
                 contentAlignment = Alignment.Center
             ) {
-                // Futuristic crosshair indicators
                 Canvas(modifier = Modifier.size(54.dp)) {
                     val radius = size.minDimension / 2f
-                    // Cyan glowing pointers
                     drawLine(
                         color = NeonCyan, 
                         start = Offset(radius, 0f), 
@@ -484,7 +504,6 @@ fun PlayerScreen(
                         strokeWidth = 2.dp.toPx()
                     )
                     
-                    // Spinning vinyl record lines
                     drawCircle(
                         color = Color.White.copy(alpha = 0.1f),
                         radius = radius * 0.8f,
@@ -504,12 +523,15 @@ fun PlayerScreen(
             ) {
                 Box(
                     modifier = Modifier
-                        .background(NeonPink.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+                        .background(
+                            if (isImportedMode) NeonCyan.copy(alpha = 0.15f) else NeonPink.copy(alpha = 0.15f), 
+                            RoundedCornerShape(12.dp)
+                        )
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        text = currentSong.genre.uppercase(),
-                        color = NeonPink,
+                        text = if (isImportedMode) "AUDIO IMPORTADO" else currentSong.genre.uppercase(),
+                        color = if (isImportedMode) NeonCyan else NeonPink,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace
@@ -518,7 +540,7 @@ fun PlayerScreen(
                 Spacer(modifier = Modifier.height(4.dp))
                 
                 Text(
-                    text = currentSong.name,
+                    text = if (isImportedMode) importedSongName else currentSong.name,
                     color = Color.White,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Black,
@@ -527,7 +549,7 @@ fun PlayerScreen(
                 )
                 
                 Text(
-                    text = "By SuperSynth Sequencer",
+                    text = if (isImportedMode) "Reproducción Externa" else "By SuperSynth Sequencer",
                     color = TextSecondary,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium
@@ -549,8 +571,12 @@ fun PlayerScreen(
             // Previous track Button
             IconButton(
                 onClick = {
-                    val prevIndex = if (activeSongIndex > 0) activeSongIndex - 1 else SynthEngine.SONGS.lastIndex
-                    viewModel.selectSong(prevIndex)
+                    if (isImportedMode) {
+                        viewModel.selectSong(0) // Return to synth mode
+                    } else {
+                        val prevIndex = if (activeSongIndex > 0) activeSongIndex - 1 else SynthEngine.SONGS.lastIndex
+                        viewModel.selectSong(prevIndex)
+                    }
                 },
                 modifier = Modifier
                     .size(54.dp)
@@ -586,11 +612,12 @@ fun PlayerScreen(
                     .clip(CircleShape)
                     .background(
                         Brush.radialGradient(
-                            colors = listOf(NeonPink, NeonPurple)
+                            if (isImportedMode) listOf(NeonCyan, NeonPurple) 
+                            else listOf(NeonPink, NeonPurple)
                         )
                     )
                     .clickable { viewModel.playPause() }
-                    .border(2.dp, NeonCyan, CircleShape)
+                    .border(2.dp, if (isImportedMode) NeonPink else NeonCyan, CircleShape)
                     .testTag("btn_play_pause"),
                 contentAlignment = Alignment.Center
             ) {
@@ -627,8 +654,12 @@ fun PlayerScreen(
             // Next track Button
             IconButton(
                 onClick = {
-                    val nextIndex = if (activeSongIndex < SynthEngine.SONGS.lastIndex) activeSongIndex + 1 else 0
-                    viewModel.selectSong(nextIndex)
+                    if (isImportedMode) {
+                        viewModel.selectSong(0) // Return to synth mode
+                    } else {
+                        val nextIndex = if (activeSongIndex < SynthEngine.SONGS.lastIndex) activeSongIndex + 1 else 0
+                        viewModel.selectSong(nextIndex)
+                    }
                 },
                 modifier = Modifier
                     .size(54.dp)
@@ -646,7 +677,72 @@ fun PlayerScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // IMPORTER AREA (PRIMARY ADDITION FOR LOCAL FILES)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .testTag("audio_importer_card"),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = CyberSurface),
+            border = BorderStroke(1.dp, NeonCyan.copy(alpha = 0.6f))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "IMPORTAR TU PROPIA MÚSICA",
+                        color = NeonCyan,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Carga cualquier archivo de audio (MP3, WAV) desde tu almacenamiento.",
+                        color = TextSecondary,
+                        fontSize = 11.sp
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Button(
+                    onClick = { filePickerLauncher.launch("audio/*") },
+                    colors = ButtonDefaults.buttonColors(containerColor = CyberSurfaceVariant),
+                    border = BorderStroke(1.dp, NeonPink),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+                    modifier = Modifier.testTag("btn_import_music")
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FolderOpen,
+                            contentDescription = "Open folder icon",
+                            tint = NeonPink,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "ELEGIR",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
 
         // Tracks List Section
         Column(
@@ -670,8 +766,65 @@ fun PlayerScreen(
                     .testTag("horizontal_tracks_list"),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                // Pre-append a "currently imported file" representation card to the list if imported song is active
+                if (isImportedMode) {
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .width(180.dp)
+                                .clickable {
+                                    // Just toggle play if clicked active imported card
+                                    viewModel.playPause()
+                                }
+                                .testTag("track_card_imported"),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = CyberSurfaceVariant),
+                            border = BorderStroke(1.5.dp, NeonCyan)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp)
+                            ) {
+                                Text(
+                                    text = "MP3 / LOCAL FILE",
+                                    color = NeonCyan,
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = importedSongName,
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = NeonPink,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Text(
+                                        text = "REPRODUCIENDO",
+                                        color = TextSecondary,
+                                        fontSize = 11.sp,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 itemsIndexed(SynthEngine.SONGS) { index, song ->
-                    val isSelected = index == activeSongIndex
+                    val isSelected = index == activeSongIndex && !isImportedMode
                     
                     Card(
                         modifier = Modifier
@@ -751,7 +904,7 @@ fun PlayerScreen(
                 modifier = Modifier.padding(20.dp)
             ) {
                 Text(
-                    text = "CONTROLES DE SÍNTESIS DE ONDA",
+                    text = "CONTROLES DE MODULACIÓN ESPECIAL",
                     color = NeonCyan,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
@@ -807,7 +960,7 @@ fun PlayerScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "TRANSPOSITOR",
+                        text = if (isImportedMode) "VELOCIDAD" else "TRANSPOSITOR",
                         color = TextPrimary,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
@@ -830,106 +983,116 @@ fun PlayerScreen(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (pitchShift >= 0) "+$pitchShift" else pitchShift.toString(),
+                        text = if (isImportedMode) {
+                            val factor = 1.0f + (pitchShift / 12.0f)
+                            "${"%.2f".format(factor)}x"
+                        } else {
+                            if (pitchShift >= 0) "+$pitchShift" else pitchShift.toString()
+                        },
                         color = NeonCyan,
                         fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.width(28.dp),
+                        modifier = Modifier.width(42.dp),
                         textAlign = TextAlign.End
                     )
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
-                Divider(color = NeonPurple.copy(alpha = 0.2f), thickness = 1.dp)
-                Spacer(modifier = Modifier.height(16.dp))
+                // Conditionally display Synth Specific Modulators only if in Synth Mode
+                AnimatedVisibility(visible = !isImportedMode) {
+                    Column {
+                        Spacer(modifier = Modifier.height(20.dp))
+                        HorizontalDivider(color = NeonPurple.copy(alpha = 0.2f), thickness = 1.dp)
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                // Oscillator Selectors
-                Text(
-                    text = "FORMA DE ONDA DE LOS OSCILADORES",
-                    color = TextSecondary,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace
-                )
-                Spacer(modifier = Modifier.height(12.dp))
+                        // Oscillator Selectors
+                        Text(
+                            text = "FORMA DE ONDA DE LOS OSCILADORES",
+                            color = TextSecondary,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
 
-                // Bass Oscillator Type Select
-                Text(
-                    text = "Oscilador Bass (Sintetizador Sub):",
-                    color = TextPrimary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(bottom = 6.dp)
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    SynthEngine.OscillatorType.values().forEach { type ->
-                        val selected = bassOscillator == type
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(32.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (selected) NeonPink else CyberBackground)
-                                .clickable { viewModel.setBassOscillator(type) }
-                                .border(
-                                    width = 1.dp,
-                                    color = if (selected) NeonCyan else NeonPurple.copy(alpha = 0.3f),
-                                    shape = RoundedCornerShape(8.dp)
-                                ),
-                            contentAlignment = Alignment.Center
+                        // Bass Oscillator Type Select
+                        Text(
+                            text = "Oscilador Bass (Sintetizador Sub):",
+                            color = TextPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Text(
-                                text = type.name,
-                                color = if (selected) Color.White else TextSecondary,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace
-                            )
+                            SynthEngine.OscillatorType.values().forEach { type ->
+                                val selected = bassOscillator == type
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(32.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (selected) NeonPink else CyberBackground)
+                                        .clickable { viewModel.setBassOscillator(type) }
+                                        .border(
+                                            width = 1.dp,
+                                            color = if (selected) NeonCyan else NeonPurple.copy(alpha = 0.3f),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = type.name,
+                                        color = if (selected) Color.White else TextSecondary,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
+                            }
                         }
-                    }
-                }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                // Lead Oscillator Type Select
-                Text(
-                    text = "Oscilador Lead (Sintetizador Solista):",
-                    color = TextPrimary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(bottom = 6.dp)
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    SynthEngine.OscillatorType.values().forEach { type ->
-                        val selected = leadOscillator == type
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(32.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (selected) NeonCyan else CyberBackground)
-                                .clickable { viewModel.setLeadOscillator(type) }
-                                .border(
-                                    width = 1.dp,
-                                    color = if (selected) NeonPink else NeonPurple.copy(alpha = 0.3f),
-                                    shape = RoundedCornerShape(8.dp)
-                                ),
-                            contentAlignment = Alignment.Center
+                        // Lead Oscillator Type Select
+                        Text(
+                            text = "Oscilador Lead (Sintetizador Solista):",
+                            color = TextPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Text(
-                                text = type.name,
-                                color = if (selected) Color.Black else TextSecondary,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace
-                            )
+                            SynthEngine.OscillatorType.values().forEach { type ->
+                                val selected = leadOscillator == type
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(32.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (selected) NeonCyan else CyberBackground)
+                                        .clickable { viewModel.setLeadOscillator(type) }
+                                        .border(
+                                            width = 1.dp,
+                                            color = if (selected) NeonPink else NeonPurple.copy(alpha = 0.3f),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = type.name,
+                                        color = if (selected) Color.Black else TextSecondary,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
+                            }
                         }
                     }
                 }
