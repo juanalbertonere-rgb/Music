@@ -1,0 +1,6 @@
+{
+  "name": "Reproductor de Música",
+  "description": "Un reproductor de música con ondas de sonido en movimiento que reaccionan al audio de manera épica.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
